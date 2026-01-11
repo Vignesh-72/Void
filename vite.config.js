@@ -7,7 +7,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Include both logos: logotrans.png (for UI) and logo.jpeg (for App Icon)
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.jpeg', 'logotrans.png'],
       manifest: {
         name: 'VOID Protocol',
@@ -17,17 +16,18 @@ export default defineConfig({
         background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait',
-        // Mobile Home Screen Icons (Using the solid JPEG)
         icons: [
           {
-            src: 'logo.jpeg', // Must match the file in your /public folder
+            src: 'logo.jpeg',
             sizes: '192x192',
-            type: 'image/jpeg'
+            type: 'image/jpeg',
+            purpose: 'any maskable'
           },
           {
-            src: 'logo.jpeg', 
+            src: 'logo.jpeg',
             sizes: '512x512',
-            type: 'image/jpeg'
+            type: 'image/jpeg',
+            purpose: 'any maskable'
           }
         ]
       }
