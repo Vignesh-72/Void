@@ -1,18 +1,198 @@
 import React, { useState, useEffect } from 'react';
-import { getApod } from '../api/nasa';
+// FIX: Import createPortal to break out of the z-index stack
+import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { Rocket, CalendarPlus, Info, Shield, Cpu, Code, Percent, Database, Satellite, Clock } from 'lucide-react';
+import { Rocket, CalendarPlus, Info, Shield, Cpu, Code, Database, Satellite, Clock, RefreshCw, X, MapPin, ExternalLink, Play, ChevronRight } from 'lucide-react';
 import { CACHE_KEYS, CACHE_TTLS } from '../utils/cacheManager';
+import Loader from '../components/Loader';
+
+// --- CONSTANTS ---
+const PRIMARY_SOURCE = {
+  title: "Deep Field Observation",
+  url: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2011&auto=format&fit=crop",
+  explanation: "Real-time visual feed from deep space observation outposts. This imagery captures the dense nebulosity and star formation regions in the outer spiral arms.",
+  copyright: "VOID Network",
+  _isLocal: false
+};
+
+const FALLBACK_SOURCE = {
+  title: "System Offline",
+  url: "/fallbackimage.png", 
+  explanation: "Unable to establish uplink. Displaying locally cached system assets.",
+  copyright: "Local System",
+  _isLocal: true
+};
+
+// --- MODAL COMPONENT ---
+const LaunchDetailModal = ({ launch, onClose, getTMinus }) => {
+  if (!launch) return null;
+
+  let mapQuery = null;
+  if (launch.pad?.latitude && launch.pad?.longitude) {
+    mapQuery = `${launch.pad.latitude},${launch.pad.longitude}`;
+  } else if (launch.location) {
+    mapQuery = launch.location;
+  }
+
+  const mapUrl = mapQuery 
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=k&z=13&ie=UTF8&iwloc=&output=embed`
+    : null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
+      
+      <div 
+        className="bg-[#0a0a0a] border border-white/20 rounded-2xl md:rounded-3xl w-full max-w-4xl max-h-[85vh] md:max-h-[90vh] overflow-y-auto shadow-2xl relative flex flex-col md:flex-row" 
+        onClick={e => e.stopPropagation()}
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-3 right-3 z-50 p-2 bg-black/60 hover:bg-white/20 rounded-full text-white transition-colors border border-white/10 backdrop-blur-md"
+        >
+          <X size={20} />
+        </button>
+
+        {/* SECTION 1: IMAGE & ACTIONS */}
+        <div className="w-full md:w-1/3 bg-white/5 border-b md:border-b-0 md:border-r border-white/10 p-5 md:p-6 flex flex-col order-first md:order-last relative">
+          <div className="relative aspect-video md:aspect-auto md:flex-1 rounded-xl overflow-hidden bg-black border border-white/10 mb-4 md:mb-6 group">
+            {launch.image ? (
+              <img 
+                src={launch.image} 
+                alt="Rocket" 
+                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                <Rocket className="w-12 h-12 text-slate-600" />
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+            <div className="absolute bottom-3 left-3 right-3">
+              <p className="text-[10px] font-bold text-blue-400 uppercase mb-0.5 animate-pulse">Live Countdown</p>
+              <p className="text-2xl md:text-3xl font-mono font-bold text-white tracking-tighter shadow-black drop-shadow-md">
+                {getTMinus(launch.date_utc)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 mt-auto">
+            {launch.links?.webcast && (
+              <a 
+                href={launch.links.webcast} 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                <Play size={14} fill="currentColor" /> Watch Stream
+              </a>
+            )}
+            <a 
+              href={`https://www.google.com/search?q=${encodeURIComponent(launch.name + ' launch')}`}
+              target="_blank" 
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+            >
+              <ExternalLink size={14} /> Mission Info
+            </a>
+          </div>
+        </div>
+
+        {/* SECTION 2: INFO & MAP */}
+        <div className="w-full md:w-2/3 p-5 md:p-8 space-y-6 md:space-y-8">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded uppercase tracking-wider">
+                {launch.provider || 'Unknown Provider'}
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${launch.status?.toLowerCase().includes('go') ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-white/10 text-slate-300 border-white/20'}`}>
+                {launch.status}
+              </span>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter leading-tight mb-2">
+              {launch.name}
+            </h2>
+            <p className="text-slate-400 font-mono text-xs">
+              <Clock className="w-3 h-3 inline mr-1.5" />
+              {new Date(launch.date_utc).toLocaleString(undefined, { 
+                weekday: 'short', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+              })}
+            </p>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 relative overflow-hidden">
+            <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2">
+              <Info size={14} /> Mission Briefing
+            </h3>
+            <p className="text-sm text-slate-300 leading-relaxed font-light">
+              {launch.description || "No specific mission details available for this launch."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+              <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Orbit</p>
+              <p className="text-white font-mono text-sm break-words leading-tight">
+                {launch.orbit || "Unknown"}
+              </p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+              <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Rocket</p>
+              <p className="text-white font-mono text-sm break-words leading-tight">
+                {launch.rocket_config || "Unknown"}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+              <MapPin size={14} /> Launch Site
+            </h3>
+            
+            {mapUrl ? (
+              <div className="rounded-xl overflow-hidden border border-white/10 h-48 md:h-56 bg-slate-900 relative group">
+                <iframe 
+                  width="100%" 
+                  style={{ height: '120%' }}
+                  src={mapUrl} 
+                  frameBorder="0" 
+                  scrolling="no" 
+                  marginHeight="0" 
+                  marginWidth="0" 
+                  title="Launch Pad Map"
+                  className="opacity-80 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0 duration-500 relative -top-[10%]"
+                />
+                <div className="absolute top-2 left-2 bg-black/80 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white flex items-center gap-1 border border-white/10 pointer-events-none">
+                  Live Satellite View
+                </div>
+              </div>
+            ) : (
+              <div className="h-32 bg-white/5 rounded-xl flex flex-col items-center justify-center border border-white/10 text-center p-4">
+                <MapPin className="w-6 h-6 text-slate-600 mb-2" />
+                <p className="text-xs text-slate-500">Map data unavailable for this site.</p>
+              </div>
+            )}
+            <p className="text-xs text-slate-500 truncate">{launch.location}</p>
+          </div>
+
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 export default function Home({ cacheContext }) {
   const { updateCache, getCache, isCacheStale } = cacheContext;
-  const [apod, setApod] = useState(null);
-  const [nextLaunch, setNextLaunch] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [usingCachedApod, setUsingCachedApod] = useState(false);
-  const [usingCachedLaunch, setUsingCachedLaunch] = useState(false);
-  
+
+  const cachedLaunch = getCache(CACHE_KEYS.NEXT_LAUNCH);
+  const isLaunchStale = isCacheStale(CACHE_KEYS.NEXT_LAUNCH);
+
+  const [apod, setApod] = useState(PRIMARY_SOURCE);
+  const [nextLaunch, setNextLaunch] = useState(cachedLaunch || null);
+  const [loading, setLoading] = useState(!cachedLaunch);
   const [now, setNow] = useState(new Date());
+  
+  const [selectedLaunch, setSelectedLaunch] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -20,9 +200,9 @@ export default function Home({ cacheContext }) {
   }, []);
 
   const getTMinus = (date) => {
-    if (!date) return "Calculating...";
+    if (!date) return "00d 00h 00m 00s";
     const diff = new Date(date) - now;
-    if (diff < 0) return "Launched";
+    if (diff < 0) return "LAUNCHED";
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
     const mins = Math.floor((diff / (1000 * 60)) % 60);
@@ -31,101 +211,40 @@ export default function Home({ cacheContext }) {
     return `${hours}h ${mins}m ${secs}s`;
   };
 
-  const addToCalendarUrl = (launch) => {
-    if (!launch) return '#';
-    const startTime = new Date(launch.date_utc).toISOString().replace(/-|:|\.\d\d\d/g, "");
-    const endTime = new Date(new Date(launch.date_utc).getTime() + 60*60*1000).toISOString().replace(/-|:|\.\d\d\d/g, "");
-    const title = encodeURIComponent(`${launch.name} Launch`);
-    const details = encodeURIComponent(`Watch live: ${launch.links?.webcast || 'TBD'}`);
-    const location = encodeURIComponent(launch.location || 'Space');
-    return `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startTime}/${endTime}&details=${details}&location=${location}`;
-  };
-
   const fetchHomeData = async (forceRefresh = false) => {
-    setLoading(true);
-    try {
-      const cachedApod = getCache(CACHE_KEYS.APOD);
-      const shouldFetchApod = forceRefresh || !cachedApod || isCacheStale(CACHE_KEYS.APOD);
-      
-      if (shouldFetchApod) {
-        try {
-          const apodRes = await getApod();
-          const apodData = {
-            title: apodRes.data.title,
-            url: apodRes.data.url,
-            explanation: apodRes.data.explanation,
-            copyright: apodRes.data.copyright || "NASA",
-            _fetchedAt: new Date().toISOString()
-          };
-          setApod(apodData);
-          setUsingCachedApod(false);
-          updateCache(CACHE_KEYS.APOD, apodData, { ttl: CACHE_TTLS.APOD });
-        } catch (error) {
-          if (cachedApod) {
-            setApod({ ...cachedApod, _cached: true });
-            setUsingCachedApod(true);
-          } else {
-             setApod({
-              title: "Cosmic Exploration",
-              url: "https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?q=80&w=2071&auto=format&fit=crop",
-              explanation: "System offline. Showing default visualization of orbital mechanics.",
-              copyright: "VOID System",
-              _fallback: true
-            });
-          }
-        }
-      } else {
-        setApod({ ...cachedApod, _cached: true });
-        setUsingCachedApod(true);
-      }
+    if (!nextLaunch) setLoading(true);
 
-      const cachedLaunch = getCache(CACHE_KEYS.NEXT_LAUNCH);
-      const shouldFetchLaunch = forceRefresh || !cachedLaunch || isCacheStale(CACHE_KEYS.NEXT_LAUNCH);
-      
-      if (shouldFetchLaunch) {
+    try {
+      if (forceRefresh || !cachedLaunch || isLaunchStale) {
         try {
           const res = await axios.get('https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?limit=5&ordering=net');
-          const currentTime = new Date();
-          const validLaunch = res.data.results.find(launch => new Date(launch.net) > currentTime);
+          const validLaunch = res.data.results.find(launch => new Date(launch.net) > new Date());
 
           if (validLaunch) {
             const launchData = {
               name: validLaunch.name,
               date_utc: validLaunch.net,
-              mission: validLaunch.mission?.name,
-              description: validLaunch.mission?.description,
-              type: validLaunch.mission?.type || "Orbital Mission",
-              orbit: validLaunch.mission?.orbit?.name || "Low Earth Orbit",
               provider: validLaunch.launch_service_provider?.name,
-              location: validLaunch.pad?.location?.name,
               status: validLaunch.status?.name || "Scheduled",
-              probability: validLaunch.probability,
-              links: {
-                patch: { small: validLaunch.image },
-                webcast: validLaunch.vidURLs?.[0]?.url
+              location: validLaunch.pad?.location?.name,
+              description: validLaunch.mission?.description,
+              orbit: validLaunch.mission?.orbit?.name,
+              rocket_config: validLaunch.rocket?.configuration?.name,
+              pad: {
+                latitude: validLaunch.pad?.latitude,
+                longitude: validLaunch.pad?.longitude,
+                name: validLaunch.pad?.name
               },
+              image: validLaunch.image,
+              links: { webcast: validLaunch.vidURLs?.[0]?.url },
               _fetchedAt: new Date().toISOString()
             };
             setNextLaunch(launchData);
-            setUsingCachedLaunch(false);
             updateCache(CACHE_KEYS.NEXT_LAUNCH, launchData, { ttl: CACHE_TTLS.NEXT_LAUNCH });
-          } else if (cachedLaunch) {
-            setNextLaunch({ ...cachedLaunch, _cached: true });
-            setUsingCachedLaunch(true);
-          } else {
-            setNextLaunch(null);
-          }
+          } 
         } catch (error) {
-          if (cachedLaunch) {
-            setNextLaunch({ ...cachedLaunch, _cached: true });
-            setUsingCachedLaunch(true);
-          } else {
-            setNextLaunch(null);
-          }
+          console.error("Launch Fetch Failed:", error);
         }
-      } else {
-        setNextLaunch({ ...cachedLaunch, _cached: true });
-        setUsingCachedLaunch(true);
       }
     } finally {
       setLoading(false);
@@ -136,270 +255,137 @@ export default function Home({ cacheContext }) {
     fetchHomeData();
   }, []);
 
-  if (loading) return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center">
-      <div className="relative">
-        <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-      </div>
-      <p className="mt-6 text-lg text-slate-400 font-medium font-mono">
-        INITIALIZING PROTOCOLS...
-      </p>
-    </div>
-  );
+  if (loading) return <Loader text="INITIALIZING MISSION CONTROL..." />;
+
+  const displayApod = apod;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 animate-in fade-in duration-700">
       
-      {/* HERO: APOD */}
-      {/* FROSTED GLASS CONTAINER */}
-      <section className="group relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl">
-        <div className="aspect-[21/9] relative overflow-hidden">
+      {/* 1. HERO SECTION */}
+      <section className="group relative overflow-hidden rounded-2xl md:rounded-3xl bg-white/5 border border-white/10 shadow-xl min-h-[300px] md:min-h-[400px]">
+        <div className="absolute inset-0 bg-black">
           <img 
-            src={apod?.url} 
-            alt={apod?.title}
-            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105 opacity-70 group-hover:opacity-90"
+            src={displayApod.url} 
+            alt={displayApod.title}
+            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105 opacity-90"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full mb-4 shadow-sm">
-              <Satellite className="w-4 h-4 text-white" />
-              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Astronomy Picture of the Day</span>
-              {usingCachedApod && (
-                <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full ml-2 border border-white/20">CACHED</span>
-              )}
+        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8 pointer-events-none">
+          <div className="max-w-4xl pointer-events-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-flex items-center gap-2 px-2 py-1 bg-white/20 backdrop-blur-md border border-white/20 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider">
+                <Satellite size={12} /> Deep Space Feed
+              </span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight drop-shadow-lg">{apod?.title}</h1>
-            <p className="text-slate-300 line-clamp-2 md:line-clamp-3 leading-relaxed max-w-2xl drop-shadow-md">{apod?.explanation}</p>
-            {apod?.copyright && (
-              <p className="text-xs text-slate-500 mt-4 font-mono uppercase tracking-widest">© {apod.copyright}</p>
-            )}
+            <h1 className="text-xl md:text-3xl font-black text-white mb-2 leading-tight drop-shadow-lg">
+              {displayApod.title}
+            </h1>
+            <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-2xl drop-shadow-md line-clamp-3">
+              {displayApod.explanation}
+            </p>
           </div>
         </div>
       </section>
 
-      {/* MISSION CONTROL GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* FROSTED GLASS CONTAINER */}
-        <div className="lg:col-span-2 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-xl overflow-hidden">
-          <div className="p-8">
-            <div className="flex items-start justify-between mb-8">
-              <div>
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner">
-                    <Rocket className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Next Scheduled Launch</p>
-                      {usingCachedLaunch && (
-                        <span className="text-[10px] bg-white/10 text-slate-300 px-2 py-0.5 rounded border border-white/10">CACHED</span>
-                      )}
-                    </div>
-                    <h2 className="text-2xl font-bold text-white drop-shadow-md">
-                      {nextLaunch?.name || "No upcoming launches"}
-                    </h2>
-                  </div>
+      {/* 2. DASHBOARD GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* NEXT LAUNCH CARD */}
+        <div 
+          onClick={() => setSelectedLaunch(nextLaunch)}
+          className="lg:col-span-2 bg-[#0a0a0a] rounded-2xl border border-white/10 shadow-xl overflow-hidden flex flex-col cursor-pointer group hover:border-white/30 transition-all hover:bg-white/5"
+        >
+          <div className="p-5 flex-1 flex flex-col justify-center">
+            
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-500">
+                  <Rocket className="w-6 h-6 text-blue-400" />
                 </div>
-                {nextLaunch?.provider && (
-                  <p className="text-slate-400 font-mono text-sm pl-16">{nextLaunch.provider}</p>
-                )}
-              </div>
-              {nextLaunch && (
-                <div className="flex gap-2">
-                  <a
-                    href={addToCalendarUrl(nextLaunch)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white border border-white/10 rounded-xl transition-all shadow-sm hover:shadow-md hover:border-white/20"
-                  >
-                    <CalendarPlus className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Calendar</span>
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Launch Timeline */}
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <p className="text-xs text-slate-400 uppercase font-bold mb-1">Launch Date</p>
-                  <p className="text-lg font-mono text-white">
-                    {nextLaunch ? new Date(nextLaunch.date_utc).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric'
-                    }) : 'TBD'}
-                  </p>
-                </div>
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <p className="text-xs text-slate-400 uppercase font-bold mb-1">Launch Time</p>
-                  <p className="text-lg font-mono text-white">
-                    {nextLaunch ? new Date(nextLaunch.date_utc).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }) : '--:--'}
-                  </p>
-                </div>
-                {/* Special White Glow for Countdown */}
-                <div className="p-4 rounded-2xl bg-white/10 border border-white/20 relative overflow-hidden group shadow-[inset_0_0_20px_rgba(255,255,255,0.05)]">
-                  <p className="text-xs text-white uppercase font-bold mb-1 animate-pulse">Countdown</p>
-                  <div className="text-lg font-mono text-white drop-shadow-md">
-                    {getTMinus(nextLaunch?.date_utc)}
-                  </div>
-                </div>
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <p className="text-xs text-slate-400 uppercase font-bold mb-1">Status</p>
-                  <span className="inline-flex items-center text-sm font-bold text-white">
-                    {nextLaunch?.status || 'Scheduled'}
-                  </span>
+                <div className="min-w-0">
+                  {/* CHANGED TEXT TO "Upcoming Launch" */}
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upcoming Launch</p>
+                  <h2 className="text-xl font-bold text-white leading-tight truncate group-hover:text-blue-200 transition-colors">
+                    {nextLaunch?.name || "TBD"}
+                  </h2>
                 </div>
               </div>
+              <ChevronRight className="text-slate-500 group-hover:text-white transition-colors" />
             </div>
-          </div>
-        </div>
 
-        {/* MISSION DETAILS */}
-        {/* FROSTED GLASS CONTAINER */}
-        <div className="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-xl p-8">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-3 uppercase tracking-wider">
-            <Satellite className="w-5 h-5 text-slate-300" />
-            Mission Profile
-          </h3>
-          
-          <div className="space-y-6">
-            <div className="space-y-2 border-b border-white/5 pb-4">
-              <p className="text-xs text-slate-400 uppercase font-bold">Target Orbit</p>
-              <p className="text-lg font-mono text-white">
-                {nextLaunch?.orbit || "Low Earth Orbit"}
-              </p>
-            </div>
-            
-            <div className="space-y-2 border-b border-white/5 pb-4">
-              <p className="text-xs text-slate-400 uppercase font-bold">Mission Type</p>
-              <p className="text-lg font-mono text-white">
-                {nextLaunch?.type || "Orbital"}
-              </p>
-            </div>
-            
-            <div className="space-y-2 border-b border-white/5 pb-4">
-              <p className="text-xs text-slate-400 uppercase font-bold">Launch Location</p>
-              <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 text-slate-400" />
-                <p className="text-slate-300 text-sm">
-                  {nextLaunch?.location || "Kennedy Space Center"}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Provider</p>
+                <p className="text-xs text-white truncate font-medium">{nextLaunch?.provider || "Unknown"}</p>
+              </div>
+              <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Location</p>
+                <p className="text-xs text-white truncate font-medium">{nextLaunch?.location?.split(',')[0] || "Unknown"}</p>
+              </div>
+              <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Date</p>
+                <p className="text-xs text-white truncate font-medium">
+                  {nextLaunch ? new Date(nextLaunch.date_utc).toLocaleDateString() : 'TBD'}
                 </p>
               </div>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-8 h-8 bg-blue-500/20 blur-xl rounded-full"></div>
+                <p className="text-[10px] text-blue-400 uppercase font-bold animate-pulse mb-1">T-Minus</p>
+                <p className="text-xs text-white font-mono font-bold">{getTMinus(nextLaunch?.date_utc)}</p>
+              </div>
             </div>
 
-            {nextLaunch?.probability && (
-              <div className="space-y-2">
-                <p className="text-xs text-slate-400 uppercase font-bold">Launch Probability</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-slate-400 to-white shadow-[0_0_10px_rgba(255,255,255,0.4)]"
-                      style={{ width: `${nextLaunch.probability}%` }}
-                    />
-                  </div>
-                  <span className="text-lg font-mono text-white flex items-center gap-1">
-                    {nextLaunch.probability}%
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {nextLaunch?.links?.webcast && (
-              <a
-                href={nextLaunch.links.webcast}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-full gap-2 px-4 py-3 bg-white/10 hover:bg-white/15 border border-white/20 text-white rounded-xl transition-all font-bold uppercase tracking-wider text-xs hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] backdrop-blur-sm"
-              >
-                <CalendarPlus className="w-4 h-4" />
-                Watch Live Stream
-              </a>
-            )}
           </div>
         </div>
+
+        {/* PLATFORM INFO */}
+        <div className="bg-[#0a0a0a] rounded-2xl border border-white/10 shadow-xl p-5 flex flex-col justify-center">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield className="w-4 h-4 text-green-400" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">System Status</h3>
+          </div>
+          
+          <div className="space-y-3">
+            {/* DYNAMIC SYSTEM STATUS */}
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Deep Space Link</span>
+              <span className={`font-bold ${apod ? 'text-green-400' : 'text-red-400'}`}>
+                {apod ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Launch DB</span>
+              <span className={`font-bold ${nextLaunch ? 'text-green-400' : 'text-red-400'}`}>
+                {nextLaunch ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Time Sync</span>
+              <span className="text-white font-mono">{now.toLocaleTimeString()}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-white/10 flex gap-2 overflow-x-auto no-scrollbar">
+            {/* CHANGED TO v1.0 Stable */}
+            <span className="px-2 py-1 bg-white/5 rounded text-[10px] text-slate-300 border border-white/5 whitespace-nowrap">v1.0 Stable</span>
+            <span className="px-2 py-1 bg-white/5 rounded text-[10px] text-slate-300 border border-white/5 whitespace-nowrap">Secure</span>
+            <span className="px-2 py-1 bg-white/5 rounded text-[10px] text-slate-300 border border-white/5 whitespace-nowrap">Cached</span>
+          </div>
+        </div>
+
       </div>
 
-      {/* PLATFORM INFORMATION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* FROSTED GLASS CONTAINER */}
-        <div className="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-xl p-8">
-          <h3 className="text-xl font-black italic text-white mb-6">About VOID</h3>
-          <p className="text-slate-300 mb-8 leading-relaxed font-light">
-            VOID is an advanced open-source dashboard that aggregates real-time space data from NASA, 
-            SpaceX, and global space agencies. Designed for enthusiasts and professionals alike, 
-            it provides accurate telemetry and mission tracking in a unified interface.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 text-slate-200 rounded-lg text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              <Shield className="w-3 h-3 text-white" />
-              Secure Connection
-            </span>
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 text-slate-200 rounded-lg text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              <Cpu className="w-3 h-3 text-white" />
-              Real-time Data
-            </span>
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 text-slate-200 rounded-lg text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              <Code className="w-3 h-3 text-white" />
-              Open Source
-            </span>
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 text-slate-200 rounded-lg text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              <Database className="w-3 h-3 text-white" />
-              Smart Caching
-            </span>
-          </div>
-        </div>
+      {/* DETAIL MODAL */}
+      {selectedLaunch && (
+        <LaunchDetailModal 
+          launch={selectedLaunch} 
+          onClose={() => setSelectedLaunch(null)} 
+          getTMinus={getTMinus}
+        />
+      )}
 
-        {/* FROSTED GLASS CONTAINER */}
-        <div className="bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-xl p-8">
-          <h3 className="text-xl font-black italic text-white mb-6">Data Sources</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-colors backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <span className="text-sm font-black text-white">N</span>
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm">NASA API</p>
-                  <p className="text-xs text-slate-400">Astronomy imagery & data</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold text-white bg-white/10 px-2 py-1 rounded border border-white/10">ACTIVE</span>
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-colors backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Rocket className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm">The Space Devs</p>
-                  <p className="text-xs text-slate-400">Launch manifests & schedules</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold text-white bg-white/10 px-2 py-1 rounded border border-white/10">ACTIVE</span>
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-colors backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm">Real-time Updates</p>
-                  <p className="text-xs text-slate-400">Live tracking & predictions</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold text-white bg-white/10 px-2 py-1 rounded border border-white/10">ACTIVE</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

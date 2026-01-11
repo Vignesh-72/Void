@@ -5,6 +5,8 @@ import {
   History, Info, Cpu, Disc, Database,
   ArrowLeft, Search, X
 } from 'lucide-react';
+// 1. IMPORT LOADER
+import Loader from '../components/Loader';
 
 export default function Assets({ cacheContext }) {
   const { updateCache, getCache } = cacheContext || { 
@@ -114,7 +116,7 @@ export default function Assets({ cacheContext }) {
              <h2 className="text-3xl font-black italic text-white tracking-tighter">
                 ASSET DATABASE
              </h2>
-             <p className="text-slate-400 font-mono text-sm mt-1">SECURE HARDWARE REGISTRY // LEVEL 4 CLEARANCE</p>
+             <p className="text-slate-400 font-mono text-sm mt-1">LEVEL 4 CLEARANCE</p>
           </div>
           
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 backdrop-blur-md">
@@ -159,13 +161,8 @@ export default function Assets({ cacheContext }) {
 
   // 2. LOADING VIEW
   if (loading) {
-    return (
-      <div className="h-[70vh] flex flex-col items-center justify-center text-white font-mono animate-pulse">
-        <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-6"/>
-        <p>&gt; DECRYPTING {agency} {category.toUpperCase()} ARCHIVES...</p>
-        <p className="text-xs text-slate-500 mt-2">ESTABLISHING SECURE HANDSHAKE</p>
-      </div>
-    );
+    // REPLACED LOADING UI
+    return <Loader text={`DECRYPTING ${agency} ARCHIVES...`} />;
   }
 
   // 3. LIST VIEW

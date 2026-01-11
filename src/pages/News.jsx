@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { ExternalLink, MessageSquare, User, Clock, ArrowUpCircle, ChevronDown, RefreshCw } from 'lucide-react';
 import { CACHE_KEYS } from '../utils/cacheManager';
+// IMPORT LOADER
+import Loader from '../components/Loader';
 
 export default function News({ cacheContext }) {
   const { updateCache, getCache, isCacheStale, clearCache } = cacheContext || {
@@ -11,17 +13,9 @@ export default function News({ cacheContext }) {
     clearCache: () => {}
   };
   
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [news, setNews] = useState([]);
-  const [usingCachedData, setUsingCachedData] = useState(false);
-  const [lastToken, setLastToken] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-
+  // --- 1. SYNC CACHE CHECK ---
   const CACHE_TTL = 10 * 60 * 1000;
-
+  
   const normalizeData = (cachedData) => {
     if (!cachedData) return [];
     if (Array.isArray(cachedData)) return cachedData;
@@ -29,6 +23,21 @@ export default function News({ cacheContext }) {
       .filter(([key]) => !key.startsWith('_'))
       .map(([, value]) => value);
   };
+
+  const cachedEntry = getCache(CACHE_KEYS.REDDIT_NEWS);
+  const isStale = isCacheStale(CACHE_KEYS.REDDIT_NEWS);
+  const hasValidData = cachedEntry && !isStale;
+
+  // --- 2. INIT STATE ---
+  const [news, setNews] = useState(hasValidData ? normalizeData(cachedEntry) : []);
+  const [loading, setLoading] = useState(!hasValidData);
+  const [usingCachedData, setUsingCachedData] = useState(hasValidData);
+  const [lastToken, setLastToken] = useState(hasValidData && news.length > 0 ? news[news.length - 1]?.data?.name : null);
+  const [lastFetchTime, setLastFetchTime] = useState(hasValidData ? cachedEntry._timestamp : null);
+  
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const getTimeAgo = useCallback((timestamp) => {
     const seconds = Math.floor((new Date() - new Date(timestamp * 1000)) / 1000);
@@ -43,28 +52,22 @@ export default function News({ cacheContext }) {
     if (forceRefresh) {
       setIsRefreshing(true);
       setError(null);
-    } else {
+    } else if (!hasValidData) {
       setLoading(true);
     }
 
     try {
-      const cachedEntry = getCache(CACHE_KEYS.REDDIT_NEWS);
-      if (!forceRefresh && cachedEntry) {
-        const normalizedNews = normalizeData(cachedEntry);
-        if (normalizedNews.length > 0) {
-          setNews(normalizedNews);
-          setUsingCachedData(true);
-          setLastToken(normalizedNews[normalizedNews.length - 1]?.data?.name);
-          setLastFetchTime(cachedEntry._timestamp || new Date().toISOString());
-          setLoading(false);
-          setIsRefreshing(false);
-          return;
-        }
+      if (!forceRefresh && hasValidData) {
+         // Data already loaded from sync check
+         setLoading(false);
+         return;
       }
 
       const res = await axios.get('https://www.reddit.com/r/spacex/hot.json?limit=15&raw_json=1');
+      
       if (res.data && res.data.data && Array.isArray(res.data.data.children)) {
         const cleanNews = res.data.data.children.filter(item => !item.data.stickied);
+        
         const enrichedNews = cleanNews.map(item => ({
           ...item,
           _fetchedAt: new Date().toISOString()
@@ -73,7 +76,11 @@ export default function News({ cacheContext }) {
         setNews(enrichedNews);
         setUsingCachedData(false);
         setError(null);
-        if (enrichedNews.length > 0) setLastToken(enrichedNews[enrichedNews.length - 1].data.name);
+        
+        if (enrichedNews.length > 0) {
+          setLastToken(enrichedNews[enrichedNews.length - 1].data.name);
+        }
+        
         setLastFetchTime(new Date().toISOString());
         updateCache(CACHE_KEYS.REDDIT_NEWS, enrichedNews, { ttl: CACHE_TTL });
       } else {
@@ -83,72 +90,89 @@ export default function News({ cacheContext }) {
     } catch (err) {
       console.error("News fetch error:", err);
       setError("Unable to decrypt signal. Check connection.");
-      const cachedEntry = getCache(CACHE_KEYS.REDDIT_NEWS);
+      // Fallback
       if (cachedEntry) {
-        const normalizedNews = normalizeData(cachedEntry);
-        if (normalizedNews.length > 0) {
-          setNews(normalizedNews);
-          setUsingCachedData(true);
-          setError(null);
-        }
+        setNews(normalizeData(cachedEntry));
+        setUsingCachedData(true);
+        setError(null);
       }
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [updateCache, getCache, isCacheStale]);
+  }, [updateCache, getCache, isCacheStale, hasValidData]);
 
   useEffect(() => {
-    fetchNews();
-  }, [fetchNews]);
+    // Only fetch if we didn't start with data
+    if (!hasValidData) {
+        fetchNews();
+    }
+  }, []); // Run once on mount
 
   const loadMore = useCallback(async () => {
     if (!lastToken || loadingMore) return;
+    
     setLoadingMore(true);
+    
     try {
       const res = await axios.get(`https://www.reddit.com/r/spacex/hot.json?limit=10&after=${lastToken}&raw_json=1`);
+      
       if (res.data && res.data.data && Array.isArray(res.data.data.children)) {
         const newPosts = res.data.data.children.filter(item => !item.data.stickied);
-        if (newPosts.length === 0) { setLoadingMore(false); return; }
-        const enrichedNewPosts = newPosts.map(item => ({ ...item, _fetchedAt: new Date().toISOString() }));
+        
+        if (newPosts.length === 0) {
+          setLoadingMore(false);
+          return;
+        }
+        
+        const enrichedNewPosts = newPosts.map(item => ({
+          ...item,
+          _fetchedAt: new Date().toISOString()
+        }));
+        
         setNews(prevNews => {
           const safePrevNews = Array.isArray(prevNews) ? prevNews : [];
           const updatedNews = [...safePrevNews, ...enrichedNewPosts];
           updateCache(CACHE_KEYS.REDDIT_NEWS, updatedNews, { ttl: CACHE_TTL });
           return updatedNews;
         });
-        if (enrichedNewPosts.length > 0) setLastToken(enrichedNewPosts[enrichedNewPosts.length - 1].data.name);
+        
+        if (enrichedNewPosts.length > 0) {
+          setLastToken(enrichedNewPosts[enrichedNewPosts.length - 1].data.name);
+        }
       }
-    } catch (err) { console.error("Load more error:", err); } 
-    finally { setLoadingMore(false); }
+      
+    } catch (err) {
+      console.error("Load more error:", err);
+    } finally {
+      setLoadingMore(false);
+    }
   }, [lastToken, loadingMore, updateCache]);
 
   const handleRefresh = () => {
-    if (clearCache) clearCache(CACHE_KEYS.REDDIT_NEWS);
+    if (clearCache) {
+      clearCache(CACHE_KEYS.REDDIT_NEWS);
+    }
     fetchNews(true);
   };
 
-  if (loading && !usingCachedData && news.length === 0) return (
-    <div className="h-[70vh] flex flex-col items-center justify-center text-white font-mono animate-pulse gap-4">
-      <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"/>
-      <span className="text-slate-400">&gt; DECRYPTING INTEL FEED...</span>
-    </div>
-  );
+  // 3. LOADER UI
+  if (loading) return <Loader text="DECRYPTING INTEL FEED..." />;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-8 duration-700 pb-20">
       
-      {/* HEADER - GLASS PILL */}
+      {/* HEADER */}
       <header className="flex flex-col md:flex-row justify-between gap-4 border-b border-white/10 pb-6 sticky top-0 bg-black/80 backdrop-blur-xl z-20 pt-4 rounded-b-3xl -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-3xl font-black italic tracking-tighter text-white">
-              INTEL FEED
+              NEWS FEED
             </h2>
             <div className="flex items-center gap-2">
               {usingCachedData && (
                 <span className="text-[10px] bg-white/10 text-slate-300 px-2 py-1 rounded border border-white/10">
-                  ARCHIVED
+                  OFFLINE ARCHIVE
                 </span>
               )}
               {isRefreshing && (
@@ -218,7 +242,8 @@ export default function News({ cacheContext }) {
                 rel="noopener noreferrer"
                 className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl p-6 transition-all duration-300 flex flex-col md:flex-row gap-6 overflow-hidden backdrop-blur-md shadow-lg"
               >
-                {/* Image */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
                 {hasImage && (
                   <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden border border-white/10 shrink-0 relative bg-black/50">
                     <img 
