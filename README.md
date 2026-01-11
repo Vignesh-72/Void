@@ -1,7 +1,5 @@
 <p align="center">
-  <img src="https://github.com/Vignesh-72/Void/raw/main/public/void-logo-dark.png" width="220" alt="VOID Protocol"/>
-  <br/><br/>
-  <strong>🌑 VOID PROTOCOL v1.0</strong><br/>
+  <strong>🌑 VOID v1.0</strong><br/>
   <em>Space Exploration Dashboard • Real-time • Futuristic HUD Aesthetic</em>
 </p>
 
@@ -40,3 +38,4 @@ Icons:        Lucide React
 Maps:         Leaflet • React-Leaflet
 State:        React Context + Custom Hooks
 Networking:   Axios
+
