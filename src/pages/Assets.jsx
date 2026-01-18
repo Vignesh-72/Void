@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom'; // 1. IMPORT PORTAL
 import axios from 'axios';
 import { 
   Rocket, Box, Anchor, MapPin, 
@@ -47,7 +48,6 @@ export default function Assets({ cacheContext }) {
       }
     }
     
-    // Using lldev (Dev API) - Images here are often unstable
     const base = 'https://lldev.thespacedevs.com/2.2.0';
     const agencyId = agency === 'NASA' ? '44' : '31'; // 31 = ISRO
     
@@ -111,8 +111,6 @@ export default function Assets({ cacheContext }) {
   if (!category) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20 px-4 md:px-6 pt-4">
-        
-        {/* HEADER */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-white/10 pb-6">
           <div>
              <h2 className="text-2xl md:text-3xl font-black italic text-white tracking-tighter">
@@ -120,7 +118,6 @@ export default function Assets({ cacheContext }) {
              </h2>
              <p className="text-slate-400 font-mono text-xs md:text-sm mt-1">SELECT DATA CATEGORY</p>
           </div>
-          
           <div className="flex w-full md:w-auto bg-white/5 p-1 rounded-xl border border-white/10 backdrop-blur-md">
             {['SPACEX', 'NASA', 'ISRO'].map(a => (
               <button
@@ -134,7 +131,6 @@ export default function Assets({ cacheContext }) {
           </div>
         </header>
 
-        {/* GRID DASHBOARD */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
           {supportedCats.map((cat) => (
             <button
@@ -145,7 +141,6 @@ export default function Assets({ cacheContext }) {
               <div className="absolute top-2 right-2 opacity-[0.03] group-hover:opacity-10 transition-opacity">
                  <div className="scale-[2.5]">{cat.icon}</div>
               </div>
-              
               <div className="p-3 md:p-4 bg-black/40 rounded-full text-slate-300 group-hover:text-white group-hover:scale-110 transition-transform border border-white/5 shadow-inner">
                 {React.cloneElement(cat.icon, { size: 24 })}
               </div>
@@ -175,8 +170,6 @@ export default function Assets({ cacheContext }) {
   // 3. LIST VIEW
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in slide-in-from-right-8 pb-24 px-4 md:px-6 pt-4">
-      
-      {/* STICKY HEADER */}
       <header className="flex items-center gap-4 border-b border-white/10 pb-4 sticky top-0 bg-[#0a0a0a]/90 backdrop-blur-xl z-30 pt-2 -mx-4 px-4 md:mx-0 md:px-0">
         <button 
           onClick={() => { setCategory(null); setSelectedItem(null); }}
@@ -194,7 +187,6 @@ export default function Assets({ cacheContext }) {
         </div>
       </header>
 
-      {/* ASSET LIST */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {data.map((item, idx) => (
           <AssetCard 
@@ -206,7 +198,7 @@ export default function Assets({ cacheContext }) {
         ))}
       </div>
 
-      {/* FULL SCREEN MODAL */}
+      {/* RENDER MODAL CONDITIONALLY */}
       {selectedItem && (
         <DetailModal 
           item={selectedItem} 
@@ -218,7 +210,7 @@ export default function Assets({ cacheContext }) {
   );
 }
 
-// --- ASSET CARD WITH ERROR HANDLING ---
+// --- ASSET CARD ---
 const AssetCard = ({ item, type, onClick }) => {
   const [imgError, setImgError] = useState(false);
   const name = item.name || item.full_name || item.serial || item.title || "Unknown Asset";
@@ -228,9 +220,8 @@ const AssetCard = ({ item, type, onClick }) => {
   return (
     <button 
       onClick={onClick}
-      className="text-left bg-white/5 border border-white/10 rounded-2xl hover:border-white/30 hover:bg-white/10 transition-all group flex flex-col relative overflow-hidden h-full active:scale-[0.98] duration-200"
+      className="text-left bg-white/5 border border-white/10 rounded-2xl hover:border-white/30 hover:bg-white/10 transition-all group flex flex-col relative overflow-hidden h-full active:scale-[0.98] duration-200 w-full"
     >
-      {/* Status Badge */}
       {status && (
         <div className="absolute top-3 right-3 z-10">
            <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded backdrop-blur-md border shadow-lg ${['active','operational','under construction'].includes(status.toLowerCase()) ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-black/60 text-slate-400 border-white/10'}`}>
@@ -239,29 +230,25 @@ const AssetCard = ({ item, type, onClick }) => {
         </div>
       )}
 
-      {/* Image / Placeholder */}
       <div className="h-40 w-full bg-black/40 overflow-hidden relative border-b border-white/5">
          {image && !imgError ? (
            <img 
              src={image} 
              className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" 
              loading="lazy"
-             onError={() => setImgError(true)} // <-- FIX: Handles ORB/404 errors
+             onError={() => setImgError(true)} 
            />
          ) : (
            <div className="absolute inset-0 flex items-center justify-center opacity-10">
               <Rocket size={48} />
            </div>
          )}
-         
          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-         
          <div className="absolute bottom-3 left-4 right-4">
             <h3 className="text-lg font-bold text-white leading-tight line-clamp-1">{name}</h3>
          </div>
       </div>
 
-      {/* Compact Info Footer */}
       <div className="p-4 grid grid-cols-2 gap-y-2 gap-x-4 text-[10px] text-slate-400 font-mono w-full">
          {item.serial && <div className="truncate">S/N: <span className="text-slate-200">{item.serial}</span></div>}
          {item.type && <div className="truncate">TYPE: <span className="text-slate-200">{item.type}</span></div>}
@@ -274,16 +261,17 @@ const AssetCard = ({ item, type, onClick }) => {
   );
 };
 
-// --- DETAIL MODAL ---
+// --- DETAIL MODAL (FIXED WITH PORTAL) ---
 const DetailModal = ({ item, type, onClose }) => {
   const [imgError, setImgError] = useState(false);
   if (!item) return null;
 
   const renderData = (obj) => {
     return Object.entries(obj).map(([key, value]) => {
+      // Filter out objects and specific keys to prevent crashes
       if (typeof value === 'object' && value !== null) return null;
-      if (['id', 'flickr_images', 'image', 'image_url', 'description', 'url'].includes(key)) return null;
-      if (!value) return null;
+      if (['id', 'flickr_images', 'image', 'image_url', 'description', 'url', 'wikipedia', 'web_url'].includes(key)) return null;
+      if (value === null || value === undefined || value === '') return null;
       
       return (
         <div key={key} className="flex flex-col border-b border-white/5 py-3">
@@ -297,13 +285,16 @@ const DetailModal = ({ item, type, onClose }) => {
   const name = item.name || item.full_name || item.serial || "Asset Details";
   const image = item.flickr_images?.[0] || item.image || item.image_url || null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center md:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+  // 2. USE CREATE PORTAL TO BREAK OUT OF THE DOM HIERARCHY
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       
       {/* Modal Content */}
-      <div className="bg-[#0a0a0a] md:bg-black/90 border-t md:border border-white/10 w-full md:max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col relative animate-in slide-in-from-bottom-10">
+      <div 
+        className="bg-[#0a0a0a] md:bg-black/90 border-t md:border border-white/10 w-full md:max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col relative animate-in slide-in-from-bottom-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         
-        {/* Sticky Close Button */}
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 z-20 p-2 bg-black/50 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/10 transition-all"
@@ -329,7 +320,7 @@ const DetailModal = ({ item, type, onClose }) => {
               <span className="text-[10px] font-bold bg-blue-500/20 text-blue-300 px-2 py-1 rounded border border-blue-500/30 uppercase mb-2 inline-block">
                 {type}
               </span>
-              <h2 className="text-2xl md:text-3xl font-black text-white uppercase italic leading-none">{name}</h2>
+              <h2 className="text-2xl md:text-3xl font-black text-white uppercase italic leading-none drop-shadow-lg">{name}</h2>
            </div>
         </div>
 
@@ -353,11 +344,11 @@ const DetailModal = ({ item, type, onClose }) => {
               {renderData(item)}
            </div>
            
-           {/* Bottom Safe Area padding for mobile */}
-           <div className="h-12 md:h-0" />
+           <div className="h-20 md:h-0" />
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body // RENDER TO BODY
   );
 };
