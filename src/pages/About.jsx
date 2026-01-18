@@ -1,9 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Github, Mail, User, Cpu, Layers, Zap, 
   Shield, GitBranch, Network, Database, 
   Server, Globe, Terminal, Code, Activity 
 } from 'lucide-react';
+
+// --- BACKGROUND COMPONENT (Fixed for Mobile & Z-Index) ---
+const FixedBackground = ({ image, isLoaded, onLoad }) => {
+  // Portal renders this outside the 'page-transition' div that causes scrolling issues.
+  return createPortal(
+    <div className="fixed inset-0 w-full h-[100dvh] z-[1] pointer-events-none bg-black">
+      <img 
+        src={image} 
+        alt="Background" 
+        // object-center prevents the 'zoomed in' look on mobile
+        className={`w-full h-full object-cover object-center transition-opacity duration-1000 ease-in-out ${isLoaded ? 'opacity-90' : 'opacity-0'}`}
+        onLoad={onLoad}
+      />
+      {/* Overlays */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.6)_100%)]" />
+    </div>,
+    document.body
+  );
+};
 
 export default function About() {
   
@@ -22,33 +43,23 @@ export default function About() {
   // --- LOADING ANIMATION STATE ---
   const [isBgLoaded, setIsBgLoaded] = useState(false);
 
-  return (
-    <div className="relative min-h-screen w-full overflow-hidden text-white pb-20">
-      
-      {/* --- 1. FIXED BACKGROUND LAYER (FIXED) --- */}
-      {/* Changed h-full to h-screen and added supports-[height:100dvh] for mobile browsers */}
-      <div className="fixed inset-0 w-full h-screen supports-[height:100dvh]:h-[100dvh] -z-50 bg-black">
-        
-        {/* DYNAMIC IMAGE SOURCE WITH FADE-IN */}
-        <img 
-          src={randomBg} 
-          alt="Background" 
-          // FIX: Added 'object-center' to prevent weird zooming
-          // FIX: Added inline style to force object-fit behavior on all browsers
-          className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 ease-in-out ${isBgLoaded ? 'opacity-90' : 'opacity-0'}`}
-          style={{ objectFit: 'cover' }}
-          onLoad={() => setIsBgLoaded(true)}
-        />
+  // Clean up portal logic on unmount
+  useEffect(() => {
+    return () => setIsBgLoaded(false);
+  }, []);
 
-        {/* Gradient 1: Bottom fade */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-        
-        {/* Gradient 2: Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.6)_100%)]"></div>
+  return (
+    <div className="relative w-full overflow-hidden text-white pb-20">
       
-      </div>
+      {/* --- 1. PORTAL BACKGROUND --- */}
+      <FixedBackground 
+        image={randomBg} 
+        isLoaded={isBgLoaded} 
+        onLoad={() => setIsBgLoaded(true)} 
+      />
 
       {/* --- CONTENT CONTAINER --- */}
+      {/* z-10 ensures text sits ON TOP of the portal background */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 space-y-16 md:space-y-24 pt-12 animate-in fade-in duration-1000">
 
         {/* --- HERO SECTION --- */}
@@ -76,7 +87,6 @@ export default function About() {
         {/* --- MISSION BRIEFING --- */}
         <section className="max-w-4xl mx-auto">
           <div className="relative bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-12 overflow-hidden hover:border-white/20 transition-colors duration-500 shadow-2xl">
-            {/* Decoration */}
             <div className="absolute top-0 right-0 p-6 opacity-5">
               <Network size={100} className="md:w-[120px] md:h-[120px]" />
             </div>
