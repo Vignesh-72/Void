@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Loader({ text = "INITIALIZING VOID PROTOCOLS..." }) {
+export default function Loader({ text = "INITIALIZING VOID..." }) {
   return (
     <div className="min-h-[70vh] md:min-h-[80vh] w-full flex flex-col items-center justify-center p-8">
       

@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { ExternalLink, MessageSquare, User, Clock, ArrowUpCircle, ChevronDown, RefreshCw } from 'lucide-react';
+import { ExternalLink, MessageSquare, User, Clock, ArrowUpCircle, RefreshCw, ChevronDown, Zap, AlertCircle, Hash } from 'lucide-react';
 import { CACHE_KEYS } from '../utils/cacheManager';
-// IMPORT LOADER
 import Loader from '../components/Loader';
+
+// --- SKELETON CARD COMPONENT ---
+const SkeletonNewsCard = () => (
+  <div className="w-full bg-white/5 border border-white/5 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row gap-6 animate-pulse">
+    <div className="w-full md:w-48 h-48 md:h-32 bg-white/10 rounded-xl shrink-0" />
+    <div className="flex-1 space-y-4 py-1">
+      <div className="space-y-2">
+        <div className="h-6 w-3/4 bg-white/10 rounded" />
+        <div className="h-6 w-1/2 bg-white/10 rounded" />
+      </div>
+      <div className="h-4 w-24 bg-white/10 rounded mt-2" />
+      <div className="pt-4 mt-auto flex gap-4 border-t border-white/5">
+        <div className="h-3 w-16 bg-white/10 rounded" />
+        <div className="h-3 w-16 bg-white/10 rounded" />
+      </div>
+    </div>
+  </div>
+);
 
 export default function News({ cacheContext }) {
   const { updateCache, getCache, isCacheStale, clearCache } = cacheContext || {
@@ -13,7 +30,8 @@ export default function News({ cacheContext }) {
     clearCache: () => {}
   };
   
-  // --- 1. SYNC CACHE CHECK ---
+  const TARGET_SUBS = "space+spacex+nasa+ISRO+SpaceXLounge";
+  const CACHE_KEY_NEWS = "GLOBAL_INTEL_FEED_V1"; 
   const CACHE_TTL = 10 * 60 * 1000;
   
   const normalizeData = (cachedData) => {
@@ -24,11 +42,11 @@ export default function News({ cacheContext }) {
       .map(([, value]) => value);
   };
 
-  const cachedEntry = getCache(CACHE_KEYS.REDDIT_NEWS);
-  const isStale = isCacheStale(CACHE_KEYS.REDDIT_NEWS);
+  const cachedEntry = getCache(CACHE_KEY_NEWS);
+  const isStale = isCacheStale(CACHE_KEY_NEWS);
   const hasValidData = cachedEntry && !isStale;
 
-  // --- 2. INIT STATE ---
+  // --- STATE ---
   const [news, setNews] = useState(hasValidData ? normalizeData(cachedEntry) : []);
   const [loading, setLoading] = useState(!hasValidData);
   const [usingCachedData, setUsingCachedData] = useState(hasValidData);
@@ -48,6 +66,16 @@ export default function News({ cacheContext }) {
     return "JUST NOW";
   }, []);
 
+  const getPreviewImage = (post) => {
+    if (post.preview?.images?.[0]?.source?.url) {
+      return post.preview.images[0].source.url.replace(/&amp;/g, '&');
+    }
+    if (post.thumbnail && post.thumbnail.startsWith('http')) {
+      return post.thumbnail;
+    }
+    return null;
+  };
+
   const fetchNews = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) {
       setIsRefreshing(true);
@@ -58,12 +86,12 @@ export default function News({ cacheContext }) {
 
     try {
       if (!forceRefresh && hasValidData) {
-         // Data already loaded from sync check
          setLoading(false);
          return;
       }
 
-      const res = await axios.get('https://www.reddit.com/r/spacex/hot.json?limit=15&raw_json=1');
+      // Bypass Mobile Redirects using old.reddit.com
+      const res = await axios.get(`https://old.reddit.com/r/${TARGET_SUBS}/hot.json?limit=15&raw_json=1`);
       
       if (res.data && res.data.data && Array.isArray(res.data.data.children)) {
         const cleanNews = res.data.data.children.filter(item => !item.data.stickied);
@@ -82,19 +110,30 @@ export default function News({ cacheContext }) {
         }
         
         setLastFetchTime(new Date().toISOString());
-        updateCache(CACHE_KEYS.REDDIT_NEWS, enrichedNews, { ttl: CACHE_TTL });
+        updateCache(CACHE_KEY_NEWS, enrichedNews, { ttl: CACHE_TTL });
       } else {
         throw new Error("Invalid API response format");
       }
       
     } catch (err) {
       console.error("News fetch error:", err);
-      setError("Unable to decrypt signal. Check connection.");
-      // Fallback
-      if (cachedEntry) {
-        setNews(normalizeData(cachedEntry));
-        setUsingCachedData(true);
-        setError(null);
+      setError("Uplink Failed. Check Signal.");
+      
+      try {
+         const fallbackRes = await axios.get(`https://www.reddit.com/r/${TARGET_SUBS}/hot.json?limit=15&raw_json=1`);
+         if (fallbackRes.data && fallbackRes.data.data) {
+            const cleanNews = fallbackRes.data.data.children.filter(item => !item.data.stickied);
+            setNews(cleanNews);
+            setError(null);
+            setUsingCachedData(false);
+            setLastFetchTime(new Date().toISOString());
+         }
+      } catch (fallbackErr) {
+         if (cachedEntry) {
+            setNews(normalizeData(cachedEntry));
+            setUsingCachedData(true);
+            setError(null);
+         }
       }
     } finally {
       setLoading(false);
@@ -103,11 +142,10 @@ export default function News({ cacheContext }) {
   }, [updateCache, getCache, isCacheStale, hasValidData]);
 
   useEffect(() => {
-    // Only fetch if we didn't start with data
     if (!hasValidData) {
         fetchNews();
     }
-  }, []); // Run once on mount
+  }, []);
 
   const loadMore = useCallback(async () => {
     if (!lastToken || loadingMore) return;
@@ -115,7 +153,7 @@ export default function News({ cacheContext }) {
     setLoadingMore(true);
     
     try {
-      const res = await axios.get(`https://www.reddit.com/r/spacex/hot.json?limit=10&after=${lastToken}&raw_json=1`);
+      const res = await axios.get(`https://old.reddit.com/r/${TARGET_SUBS}/hot.json?limit=10&after=${lastToken}&raw_json=1`);
       
       if (res.data && res.data.data && Array.isArray(res.data.data.children)) {
         const newPosts = res.data.data.children.filter(item => !item.data.stickied);
@@ -133,7 +171,7 @@ export default function News({ cacheContext }) {
         setNews(prevNews => {
           const safePrevNews = Array.isArray(prevNews) ? prevNews : [];
           const updatedNews = [...safePrevNews, ...enrichedNewPosts];
-          updateCache(CACHE_KEYS.REDDIT_NEWS, updatedNews, { ttl: CACHE_TTL });
+          updateCache(CACHE_KEY_NEWS, updatedNews, { ttl: CACHE_TTL });
           return updatedNews;
         });
         
@@ -149,90 +187,101 @@ export default function News({ cacheContext }) {
     }
   }, [lastToken, loadingMore, updateCache]);
 
-  const handleRefresh = () => {
+  const handleRefresh = (e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
     if (clearCache) {
-      clearCache(CACHE_KEYS.REDDIT_NEWS);
+      clearCache(CACHE_KEY_NEWS);
     }
     fetchNews(true);
   };
 
-  // 3. LOADER UI
-  if (loading) return <Loader text="DECRYPTING INTEL FEED..." />;
+  if (loading) return <Loader text="AGGREGATING GLOBAL INTEL..." />;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-8 duration-700 pb-20">
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-700 pb-20">
       
       {/* HEADER */}
-      <header className="flex flex-col md:flex-row justify-between gap-4 border-b border-white/10 pb-6 sticky top-0 bg-black/80 backdrop-blur-xl z-20 pt-4 rounded-b-3xl -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-3xl font-black italic tracking-tighter text-white">
-              NEWS FEED
-            </h2>
-            <div className="flex items-center gap-2">
-              {usingCachedData && (
-                <span className="text-[10px] bg-white/10 text-slate-300 px-2 py-1 rounded border border-white/10">
-                  OFFLINE ARCHIVE
-                </span>
-              )}
-              {isRefreshing && (
-                <span className="text-[10px] bg-white/10 text-white px-2 py-1 rounded flex items-center gap-1 border border-white/10">
-                  <RefreshCw className="w-3 h-3 animate-spin" /> SYNCING
-                </span>
-              )}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-2 md:gap-6 border-b border-white/10 pb-4 md:pb-6">
+        <div>
+          <h1 className="text-2xl md:text-4xl font-black italic text-white tracking-tighter mb-1 md:mb-0">
+            SPACEFLIGHT NEWS
+          </h1>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="md:hidden flex items-center justify-center p-1.5 bg-white/5 border border-white/10 rounded-lg text-slate-400 hover:text-white transition-colors active:scale-95"
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin text-white' : ''} />
+            </button>
+
+            <div className="h-4 w-px bg-white/10 md:hidden"></div>
+            <div className="flex items-center gap-2 text-[10px] md:text-xs font-mono text-slate-500 uppercase tracking-wide">
+               <div className="flex items-center gap-1.5">
+                 <span className={`w-1.5 h-1.5 rounded-full ${usingCachedData ? 'bg-amber-500' : 'bg-green-500 animate-pulse'}`}></span>
+                 <span className="font-bold text-slate-400">{usingCachedData ? 'OFFLINE' : 'LIVE FEED'}</span>
+               </div>
+               <span className="opacity-50">/</span>
+               <span>UPDATED: {lastFetchTime ? new Date(lastFetchTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <p className="text-[10px] font-mono text-slate-500">SOURCE: r/SPACEX // ENCRYPTED</p>
-            {lastFetchTime && (
-              <p className="text-[10px] font-mono text-slate-500">
-                UPDATED: {new Date(lastFetchTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
-          </div>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <button
+
+        <div className="flex items-center gap-3 self-end">
+          <div className="hidden md:flex gap-1">
+             {['SPACE', 'SPACEX', 'NASA', 'ISRO'].map(sub => (
+                <span key={sub} className="text-[10px] font-bold px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-slate-400">
+                   r/{sub}
+                </span>
+             ))}
+          </div>
+
+          <button 
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all text-white disabled:opacity-50 hover:scale-105 active:scale-95 shadow-sm"
-            title="Refresh news"
+            className="hidden md:flex p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group disabled:opacity-50 items-center justify-center shadow-lg"
+            title="Reload Feed"
           >
-            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw size={20} className={`text-white ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
           </button>
         </div>
-      </header>
+      </div>
 
       {/* ERROR MESSAGE */}
       {error && (
-        <div className="bg-white/5 border border-red-500/20 rounded-xl p-4 flex items-center justify-between backdrop-blur-md">
-          <p className="text-red-300 text-sm font-mono">{error}</p>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between backdrop-blur-md animate-in fade-in slide-in-from-top-2">
+          <p className="text-red-300 text-sm font-mono flex items-center gap-2">
+            <AlertCircle size={16} /> {error}
+          </p>
           <button
-            onClick={() => fetchNews(true)}
-            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-200 text-xs font-bold rounded-lg transition-colors border border-red-500/20"
+            onClick={handleRefresh}
+            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-100 text-xs font-bold rounded-lg transition-colors border border-red-500/30"
           >
-            RETRY UPLINK
+            RETRY
           </button>
         </div>
       )}
 
       {/* FEED GRID */}
-      <div className="grid grid-cols-1 gap-4">
-        {news.length === 0 && !loading ? (
+      <div className="flex flex-col gap-4">
+        
+        {!loading && news.length === 0 && (
           <div className="text-center py-20 bg-white/5 border border-white/10 rounded-2xl border-dashed">
             <p className="text-slate-500 font-mono mb-4">NO INTEL FOUND IN SECTOR</p>
-            <button
-              onClick={handleRefresh}
-              className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-bold text-sm border border-white/10"
-            >
+            <button onClick={handleRefresh} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-bold text-sm border border-white/10">
               FORCE REFRESH
             </button>
           </div>
-        ) : (
-          news.map((item, index) => {
+        )}
+
+        {news.map((item, index) => {
             const post = item.data;
-            const hasImage = post.thumbnail && post.thumbnail.startsWith('http');
+            const imageUrl = getPreviewImage(post);
 
             return (
               <a 
@@ -240,64 +289,84 @@ export default function News({ cacheContext }) {
                 href={`https://reddit.com${post.permalink}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl p-6 transition-all duration-300 flex flex-col md:flex-row gap-6 overflow-hidden backdrop-blur-md shadow-lg"
+                // FIX: Removed 'backdrop-blur-sm' and added 'transform-gpu' for crisp text
+                className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl p-5 md:p-6 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col md:flex-row gap-6 overflow-hidden transform-gpu"
               >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                {/* Glow Effect - pointer-events-none ensures no interaction bugs */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none" />
 
-                {hasImage && (
-                  <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden border border-white/10 shrink-0 relative bg-black/50">
+                {imageUrl && (
+                  <div className="w-full md:w-48 h-48 md:h-32 rounded-xl overflow-hidden border border-white/10 shrink-0 relative bg-black">
                     <img 
-                      src={post.thumbnail} 
+                      src={imageUrl} 
                       alt="preview" 
-                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500 grayscale group-hover:grayscale-0" 
+                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" 
+                      loading="lazy"
                     />
-                    {post.link_flair_text && (
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 backdrop-blur-md text-[10px] font-bold text-white uppercase rounded border border-white/10">
-                        {post.link_flair_text}
-                      </div>
-                    )}
                   </div>
                 )}
 
-                <div className="flex-1 flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-between relative z-10">
                   <div>
                     <div className="flex items-start justify-between gap-4">
-                      <h3 className="text-xl font-bold text-slate-200 group-hover:text-white transition-colors leading-snug">
-                        {post.title}
-                      </h3>
-                      <ExternalLink className="text-slate-500 group-hover:text-white transition-colors shrink-0 opacity-0 group-hover:opacity-100" size={18} />
+                      <div className="flex flex-col gap-2 w-full">
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded uppercase tracking-wider flex items-center gap-1">
+                             <Hash size={10} /> {post.subreddit}
+                           </span>
+                           <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                             <span className="text-slate-600">via</span> {post.domain}
+                           </span>
+                        </div>
+                        <h3 className="text-lg md:text-xl font-bold text-slate-200 group-hover:text-white transition-colors leading-snug line-clamp-2 md:line-clamp-none">
+                          {post.title}
+                        </h3>
+                      </div>
+                      
+                      <div className="bg-white/5 p-2 rounded-full text-slate-500 group-hover:text-white group-hover:bg-white/20 transition-all shrink-0 -mr-2 -mt-2 group-hover:mr-0 group-hover:mt-0 opacity-0 group-hover:opacity-100">
+                         <ExternalLink size={18} />
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 font-mono mt-2 truncate">VIA: <span className="text-slate-400 hover:underline">{post.domain}</span></p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 mt-6 pt-4 border-t border-white/10 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5 text-slate-400 group-hover:text-white"><ArrowUpCircle size={12} /> {post.score > 1000 ? (post.score/1000).toFixed(1) + 'k' : post.score} PTS</span>
-                    <span className="flex items-center gap-1.5"><User size={12} /> {post.author}</span>
-                    <span className="flex items-center gap-1.5"><Clock size={12} /> {getTimeAgo(post.created_utc)}</span>
-                    <span className="flex items-center gap-1.5 ml-auto text-slate-500 group-hover:text-white transition-colors"><MessageSquare size={12} /> {post.num_comments} COMMENTS</span>
+                    <span className="flex items-center gap-1.5 text-slate-400 group-hover:text-green-400 transition-colors">
+                        <ArrowUpCircle size={12} /> {post.score > 1000 ? (post.score/1000).toFixed(1) + 'k' : post.score} PTS
+                    </span>
+                    <span className="flex items-center gap-1.5 hidden sm:flex">
+                        <User size={12} /> {post.author}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <Clock size={12} /> {getTimeAgo(post.created_utc)}
+                    </span>
+                    <span className="flex items-center gap-1.5 ml-auto text-slate-500 group-hover:text-blue-300 transition-colors">
+                        <MessageSquare size={12} /> {post.num_comments} COMMENTS
+                    </span>
                   </div>
                 </div>
               </a>
             );
-          })
+        })}
+
+        {loadingMore && (
+           [...Array(3)].map((_, i) => <SkeletonNewsCard key={`more-${i}`} />)
         )}
       </div>
 
-      {/* LOAD MORE BUTTON */}
-      {news.length > 0 && (
+      {!loading && news.length > 0 && (
         <div className="flex justify-center pt-8">
           <button 
             onClick={loadMore}
             disabled={loadingMore}
-            className="group flex items-center gap-3 px-8 py-4 bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 rounded-full transition-all disabled:opacity-50 backdrop-blur-md"
+            className="group flex items-center gap-3 px-8 py-4 bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 rounded-full transition-all disabled:opacity-50 backdrop-blur-md shadow-lg"
           >
             {loadingMore ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
             ) : (
               <ChevronDown size={18} className="text-slate-400 group-hover:text-white group-hover:translate-y-1 transition-transform" />
             )}
             <span className="text-xs font-bold text-white uppercase tracking-widest">
-              {loadingMore ? "Loading..." : "Load More Intel"}
+              {loadingMore ? "Decrypting..." : "Load More Intel"}
             </span>
           </button>
         </div>

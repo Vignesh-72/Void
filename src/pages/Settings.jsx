@@ -1,14 +1,18 @@
 import React from 'react';
-import { Database, Trash2, HardDrive, ShieldCheck, Activity, Layout, Zap } from 'lucide-react';
+import { Database, Trash2, HardDrive, ShieldCheck, Activity, Layout, Zap, Power } from 'lucide-react';
 
 export default function Settings({ cacheContext, settingsContext }) {
   const { cacheStats, clearAllCache } = cacheContext;
+  
+  // Destructure the new introEnabled settings
   const { 
     dynamicLayout, setDynamicLayout,
-    pageTransitions, setPageTransitions 
+    pageTransitions, setPageTransitions,
+    introEnabled, setIntroEnabled 
   } = settingsContext || { 
     dynamicLayout: false, setDynamicLayout: () => {},
-    pageTransitions: true, setPageTransitions: () => {} 
+    pageTransitions: true, setPageTransitions: () => {},
+    introEnabled: true, setIntroEnabled: () => {}
   };
 
   return (
@@ -31,7 +35,35 @@ export default function Settings({ cacheContext, settingsContext }) {
 
         <div className="space-y-4">
           
-          {/* DYNAMIC LAYOUT TOGGLE */}
+          {/* 1. BOOT SEQUENCE (INTRO) TOGGLE */}
+          <div className="bg-white/5 p-5 md:p-6 rounded-xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                System Boot Sequence
+                {introEnabled && <span className="text-[10px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30">ACTIVE</span>}
+              </h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-md">
+                Enable the cinematic initialization sequence on startup. Disable to load the dashboard instantly.
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setIntroEnabled(!introEnabled)}
+              className={`
+                relative inline-flex items-center h-8 rounded-full w-14 transition-colors focus:outline-none border border-white/10 shrink-0
+                ${introEnabled ? 'bg-white/20' : 'bg-black/40'}
+              `}
+            >
+              <span
+                className={`
+                  inline-block w-6 h-6 transform bg-white rounded-full transition-transform duration-200 ease-in-out shadow-lg
+                  ${introEnabled ? 'translate-x-7' : 'translate-x-1'}
+                `}
+              />
+            </button>
+          </div>
+
+          {/* 2. DYNAMIC LAYOUT TOGGLE */}
           <div className="bg-white/5 p-5 md:p-6 rounded-xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
@@ -59,7 +91,7 @@ export default function Settings({ cacheContext, settingsContext }) {
             </button>
           </div>
 
-          {/* PAGE TRANSITIONS TOGGLE */}
+          {/* 3. PAGE TRANSITIONS TOGGLE */}
           <div className="bg-white/5 p-5 md:p-6 rounded-xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h4 className="font-bold text-white text-sm flex items-center gap-2">

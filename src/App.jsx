@@ -16,19 +16,32 @@ function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [cacheStats, setCacheStats] = useState({ totalItems: 0, memoryUsage: '0 KB' });
   const [isNavHovered, setIsNavHovered] = useState(false);
-  const [showIntro, setShowIntro] = useState(true);
 
   // --- SETTINGS STATE ---
+  
+  // 1. DYNAMIC LAYOUT
   const [dynamicLayout, setDynamicLayout] = useState(() => {
     const saved = localStorage.getItem('void_dynamic_layout');
     return saved !== null ? JSON.parse(saved) : false;
   });
 
+  // 2. PAGE TRANSITIONS
   const [pageTransitions, setPageTransitions] = useState(() => {
     const saved = localStorage.getItem('void_page_transitions');
     return saved !== null ? JSON.parse(saved) : true;
   });
 
+  // 3. INTRO ANIMATION (Boot Sequence)
+  const [introEnabled, setIntroEnabled] = useState(() => {
+    const saved = localStorage.getItem('void_intro_enabled');
+    return saved !== null ? JSON.parse(saved) : true; // Default to true
+  });
+
+  // Controls whether the intro is *currently* showing. 
+  // Initialize to false if introEnabled is false.
+  const [showIntro, setShowIntro] = useState(introEnabled);
+
+  // --- PERSISTENCE EFFECTS ---
   useEffect(() => {
     localStorage.setItem('void_dynamic_layout', JSON.stringify(dynamicLayout));
   }, [dynamicLayout]);
@@ -37,6 +50,11 @@ function App() {
     localStorage.setItem('void_page_transitions', JSON.stringify(pageTransitions));
   }, [pageTransitions]);
 
+  useEffect(() => {
+    localStorage.setItem('void_intro_enabled', JSON.stringify(introEnabled));
+  }, [introEnabled]);
+
+  // --- CACHE LOGIC ---
   useEffect(() => {
     const updateStats = () => {
       setCacheStats({
@@ -85,11 +103,18 @@ function App() {
   }, []);
 
   const cacheContext = { updateCache, getCache, isCacheStale, clearCache, clearAllCache, cacheStats };
-  const settingsContext = { dynamicLayout, setDynamicLayout, pageTransitions, setPageTransitions };
+  
+  // Pass all settings down to the Settings Page
+  const settingsContext = { 
+    dynamicLayout, setDynamicLayout, 
+    pageTransitions, setPageTransitions,
+    introEnabled, setIntroEnabled 
+  };
 
   return (
     <>
-      {showIntro && <IntroAnimation onComplete={() => setShowIntro(false)} />}
+      {/* Conditionally Render Intro */}
+      {showIntro && introEnabled && <IntroAnimation onComplete={() => setShowIntro(false)} />}
 
       <div className="min-h-screen bg-black text-white font-sans selection:bg-white/30 overflow-hidden flex relative antialiased">
         
@@ -130,7 +155,6 @@ function App() {
             bottom-4 left-4 right-4 h-16 rounded-2xl flex flex-row items-center justify-around px-2
             md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:left-6
             md:flex-col md:h-auto md:py-3 md:rounded-[32px] md:px-2 md:gap-2
-            /* REDUCED WIDTHS HERE: 200px expanded / 64px collapsed */
             ${isNavHovered ? 'md:w-[220px]' : 'md:w-[64px]'}
           `}
         >
@@ -185,7 +209,6 @@ function App() {
         <main className={`
           flex-1 relative z-10 h-screen overflow-y-auto scroll-smooth pb-24 md:pb-0
           transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
-          /* ADJUSTED PADDING TO MATCH NEW NAV WIDTHS */
           ${dynamicLayout && isNavHovered ? 'md:pl-[240px]' : 'md:pl-[88px]'}
         `}>
           <div className="md:hidden flex items-center justify-center py-6 sticky top-0 z-40 border-b border-white/10">
