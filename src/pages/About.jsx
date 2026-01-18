@@ -10,17 +10,9 @@ export default function About() {
   // --- RANDOM BACKGROUND LOGIC ---
   const [randomBg] = useState(() => {
     const images = [
-      '/img1.png',
-      '/img2.jpg',
-      '/img3.jpg',
-      '/img4.jpg',
-      '/img5.jpg',
-      '/img6.jpg',
-      '/img7.png',
-      '/img9.jpg',
-      '/img10.jpg',
-      '/img11.jpg',
-      '/img12.jpg'
+      '/img1.png', '/img2.jpg', '/img3.jpg', '/img4.jpg',
+      '/img5.jpg', '/img6.jpg', '/img7.png', '/img9.jpg',
+      '/img10.jpg', '/img11.jpg', '/img12.jpg'
     ];
     if (images.length === 0) return '/fallbackimage.png';
     const randomIndex = Math.floor(Math.random() * images.length);
@@ -33,14 +25,18 @@ export default function About() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-white pb-20">
       
-      {/* --- 1. FIXED BACKGROUND LAYER --- */}
-      <div className="fixed inset-0 w-full h-full -z-50 bg-black">
+      {/* --- 1. FIXED BACKGROUND LAYER (FIXED) --- */}
+      {/* Changed h-full to h-screen and added supports-[height:100dvh] for mobile browsers */}
+      <div className="fixed inset-0 w-full h-screen supports-[height:100dvh]:h-[100dvh] -z-50 bg-black">
         
         {/* DYNAMIC IMAGE SOURCE WITH FADE-IN */}
         <img 
           src={randomBg} 
           alt="Background" 
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${isBgLoaded ? 'opacity-90' : 'opacity-0'}`}
+          // FIX: Added 'object-center' to prevent weird zooming
+          // FIX: Added inline style to force object-fit behavior on all browsers
+          className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 ease-in-out ${isBgLoaded ? 'opacity-90' : 'opacity-0'}`}
+          style={{ objectFit: 'cover' }}
           onLoad={() => setIsBgLoaded(true)}
         />
 
@@ -91,7 +87,6 @@ export default function About() {
                    <Activity size={14} /> Mission Directive
                  </div>
                  
-                 {/* UPDATED: SMALLER TEXT & SIMPLER LANGUAGE */}
                  <h2 className="text-xl md:text-3xl font-bold leading-tight text-white">
                    "Space data, simplified."
                  </h2>
