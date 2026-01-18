@@ -331,7 +331,7 @@ export default function Home({ cacheContext }) {
             </h1>
             
             <p className="text-[10px] md:text-sm text-slate-300 font-mono leading-relaxed max-w-2xl drop-shadow-md opacity-80">
-              Live feed established. Aggregating telemetry and visual data from orbital assets, deep-space probes, and terrestrial launch complexes.
+            Aggregating telemetry and visual data from orbital assets, deep-space probes, and terrestrial launch complexes.
             </p>
           </div>
         </div>

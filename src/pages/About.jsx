@@ -101,7 +101,7 @@ export default function About() {
                    "Space data, simplified."
                  </h2>
                  <p className="text-slate-300 leading-relaxed font-light text-sm md:text-base">
-                   We built VOID to make space exploration easy to understand. Instead of confusing data tables, we pull information from NASA, SpaceX, and others to show you real-time launches, orbital tracking, and mission updates in one clean, simple dashboard. No complex code—just the universe at your fingertips.
+                   THE PROJECT VOID simplifies space exploration by aggregating real-time data from NASA, SpaceX, and other agencies into a single, intuitive dashboard—delivering live launches, orbital tracking, and mission updates without complexity.
                  </p>
                </div>
             </div>
