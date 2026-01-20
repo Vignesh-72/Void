@@ -32,8 +32,9 @@ export default function About() {
   const [randomBg] = useState(() => {
     const images = [
       '/img1.png', '/img2.jpg', '/img3.jpg', '/img4.jpg',
-      '/img5.jpg', '/img6.jpg', '/img7.png', '/img9.jpg',
-      '/img10.jpg', '/img11.jpg', '/img12.jpg'
+      '/img5.jpg', '/img6.jpg', '/img7.png',
+      '/img10.jpg', '/img11.jpg', '/img12.jpg' , '/img21.jpg' ,  '/img22.jpg' ,
+       '/img23.jpg' ,  '/img24.jpg' ,  '/img25.jpg'
     ];
     if (images.length === 0) return '/fallbackimage.png';
     const randomIndex = Math.floor(Math.random() * images.length);
@@ -125,7 +126,7 @@ export default function About() {
             </div>
 
             <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-1">Vignesh S</h3>
-            <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mb-8">Lead Architect & Developer</p>
+            <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mb-8">Developer</p>
 
             <div className="flex w-full gap-3 mt-auto">
               <a href="https://github.com/Vignesh-72/Void" target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/20 border border-white/10 rounded-xl transition-all group/btn">

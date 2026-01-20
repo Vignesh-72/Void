@@ -12,8 +12,9 @@ import Loader from '../components/Loader';
 // --- STOCK IMAGES ---
 const STOCK_IMAGES = [
   '/img1.png', '/img2.jpg', '/img3.jpg', '/img4.jpg',
-  '/img5.jpg', '/img6.jpg', '/img7.png', '/img9.jpg',
-  '/img10.jpg', '/img11.jpg', '/img12.jpg'
+      '/img5.jpg', '/img6.jpg', '/img7.png',
+      '/img10.jpg', '/img11.jpg', '/img12.jpg' , '/img21.jpg' ,  '/img22.jpg' ,
+       '/img23.jpg' ,  '/img24.jpg' ,  '/img25.jpg'
 ];
 
 // --- CUSTOM HOOK: SMART IMAGE LOADER ---
