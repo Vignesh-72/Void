@@ -12,9 +12,9 @@ import Loader from '../components/Loader';
 // --- STOCK IMAGES ---
 const STOCK_IMAGES = [
   '/img1.png', '/img2.jpg', '/img3.jpg', '/img4.jpg',
-      '/img5.jpg', '/img6.jpg', '/img7.png',
-      '/img10.jpg', '/img11.jpg', '/img12.jpg' , '/img21.jpg' ,  '/img22.jpg' ,
-       '/img23.jpg' ,  '/img24.jpg' ,  '/img25.jpg'
+  '/img5.jpg', '/img6.jpg', '/img7.png',
+  '/img10.jpg', '/img11.jpg', '/img12.jpg' , '/img21.jpg' ,  '/img22.jpg' ,
+  '/img23.jpg' ,  '/img24.jpg' ,  '/img25.jpg'
 ];
 
 // --- CUSTOM HOOK: SMART IMAGE LOADER ---
@@ -35,23 +35,21 @@ const FeaturedLaunchCard = ({ launch, getTMinus, onClick }) => {
   if (!launch) return null;
   const verifiedImage = useSmartImage(launch.image);
 
+  // LOGIC: Use verified image -> OR use specific fallback rocket image
+  const displayImage = verifiedImage || '/fallbackimg.jpeg';
+
   return (
     <div 
       onClick={onClick}
       className="lg:col-span-2 bg-[#0a0a0a] rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col md:flex-row cursor-pointer group hover:border-white/30 transition-all hover:bg-white/5 relative"
     >
-      <div className="w-full md:w-1/3 h-48 md:h-auto relative shrink-0 overflow-hidden">
-        {verifiedImage ? (
-           <img 
-             src={verifiedImage} 
-             alt="" 
-             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" 
-           />
-        ) : (
-           <div className="w-full h-full bg-blue-900/20 flex items-center justify-center">
-             <Rocket className="w-12 h-12 text-blue-400" />
-           </div>
-        )}
+      <div className="w-full md:w-1/3 h-48 md:h-auto relative shrink-0 overflow-hidden bg-black">
+        <img 
+          src={displayImage} 
+          alt="Launch Preview" 
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" 
+        />
+        
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent md:bg-gradient-to-r" />
         <div className="absolute top-3 right-3 md:top-4 md:left-4 md:right-auto bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg">
            <p className="text-[10px] text-blue-400 font-bold uppercase mb-0.5 animate-pulse">Live T-Minus</p>
@@ -108,7 +106,6 @@ const LaunchDetailModal = ({ launch, onClose, getTMinus }) => {
   if (launch.pad?.latitude) mapQuery = `${launch.pad.latitude},${launch.pad.longitude}`;
   else if (launch.location) mapQuery = launch.location;
   
-  // FIX: CLEANED UP URL & PARAMETERS
   const mapUrl = mapQuery 
     ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=k&z=13&ie=UTF8&iwloc=&output=embed` 
     : null;
@@ -127,11 +124,13 @@ const LaunchDetailModal = ({ launch, onClose, getTMinus }) => {
              <div className={`absolute inset-0 flex items-center justify-center bg-white/5 transition-opacity duration-500 ${isModalImageLoaded ? 'opacity-0' : 'opacity-100'}`}>
                 <Rocket className="w-10 h-10 text-white/20 animate-pulse" />
              </div>
+             {/* FIX: Also use fallbackimg in modal if primary image fails */}
              <img 
-               src={launch.image || STOCK_IMAGES[0]} 
+               src={launch.image || '/fallbackimg.jpeg'} 
                alt="" 
                className={`w-full h-full object-cover transition-all duration-1000 ${isModalImageLoaded ? 'opacity-80 group-hover:opacity-100' : 'opacity-0'}`} 
                onLoad={() => setIsModalImageLoaded(true)}
+               onError={(e) => { e.target.src = '/fallbackimg.jpeg'; setIsModalImageLoaded(true); }}
              />
              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
              <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent md:bg-gradient-to-l" />
@@ -193,7 +192,6 @@ const LaunchDetailModal = ({ launch, onClose, getTMinus }) => {
                <MapPin size={14} className="text-green-400"/> Launch Complex
              </h3>
              {mapUrl ? (
-                // FIX: Added 'overflow-hidden' and 'scale-110' to crop UI tags
                 <div className="rounded-2xl overflow-hidden border border-white/10 h-48 bg-slate-900 relative group">
                   <iframe 
                     width="100%" 
@@ -305,7 +303,8 @@ export default function Home({ cacheContext }) {
   if (loading) return <Loader text="INITIALIZING MISSION CONTROL..." />;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 animate-in fade-in duration-700">
+    // FIX: Reduced top padding from py-6/py-8 to pt-2/pt-4 to pull hero up
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-6 md:pt-0 md:pb-8 space-y-6 animate-in fade-in duration-700">
       
       {/* 1. HERO SECTION */}
       <section className="group relative overflow-hidden rounded-2xl md:rounded-3xl bg-white/5 border border-white/10 shadow-xl min-h-[300px] md:min-h-[400px]">
