@@ -1,6 +1,6 @@
-
-  <img width="814" height="306" alt="voidgit" src="https://github.com/user-attachments/assets/c0b45393-21ad-4c34-9689-5f24d69d2dd8" />
-
+<div align="center">
+<img width="514" height="306" alt="voidgit" src="https://github.com/user-attachments/assets/c0b45393-21ad-4c34-9689-5f24d69d2dd8" />
+</div>
 
 <div align="center">
 
