@@ -59,7 +59,7 @@ To run Project VOID locally on your machine:
 
 **1. Clone the Repository:**
 ```bash
-git clone https://github.com/Vignesh-72/Void.git](https://github.com/Vignesh-72/Void.git
+git clone [https://github.com/Vignesh-72/Void.git](https://github.com/Vignesh-72/Void.git)
 cd Void
 ```
 **2. Install Dependencies:**
