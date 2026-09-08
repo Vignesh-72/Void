@@ -21,13 +21,11 @@ Project VOID is a cinematic mission control center built with React and Tailwind
 
 ---
 
-## 📥 Downloads & Releases
+## 📦 SourceForge Distribution
 
-Packaged builds and offline release archives are available on SourceForge:
+Project VOID is distributed as a standalone web application. You can download the complete project `.zip` archive (containing production-ready static assets and source code) directly from SourceForge:
 
-👉 **[Download Project VOID on SourceForge](https://sourceforge.net/projects/void-app/)**
-
----
+👉 **[Download Project VOID (.zip) on SourceForge](https://sourceforge.net/projects/void-app/)**
 
 ## 🚀 Key Features
 
