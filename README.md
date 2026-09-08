@@ -7,6 +7,7 @@
 # Project VOID
 **High-Fidelity Space Exploration Dashboard**
 
+<a href="https://sourceforge.net/projects/void-app/"><img src="https://img.shields.io/badge/SourceForge-Download-EE6600?style=for-the-badge&logo=sourceforge&logoColor=white" alt="Download Project VOID on SourceForge" /></a>
 <img src="https://img.shields.io/badge/React-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React" />
 <img src="https://img.shields.io/badge/Tailwind_CSS-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
 <img src="https://img.shields.io/badge/Leaflet-%23199900.svg?style=for-the-badge&logo=Leaflet&logoColor=white" alt="Leaflet" />
@@ -17,6 +18,14 @@
 Project VOID is a cinematic mission control center built with React and Tailwind CSS. It aggregates real-time telemetry, orbital tracking, and global space news into a single, immersive "Sci-Fi HUD" interface, fully equipped with offline service worker support.
 
 </div>
+
+---
+
+## 📥 Downloads & Releases
+
+Packaged builds and offline release archives are available on SourceForge:
+
+👉 **[Download Project VOID on SourceForge](https://sourceforge.net/projects/void-app/)**
 
 ---
 
